@@ -36,7 +36,7 @@ terraform.rc
 terraform.tfstate.backup   
 .terraform.*
 .terraform.lock.hcl
-
+terraform
 
 
 #ignore secrets
