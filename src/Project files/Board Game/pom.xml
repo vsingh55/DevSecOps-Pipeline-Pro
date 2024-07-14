@@ -121,12 +121,12 @@
 	<repository>
 		<id>maven-releases</id>
 		<!-- CHANGE HERE by your team Nexus server -->
-		<url>http://35.207.247.57:8081/repository/maven-releases/</url>
+		<url>http://35.213.154.224:8081/repository/maven-releases/</url>
 	</repository>
 	<snapshotRepository>
 		<id>maven-snapshots</id>
 		<!-- CHANGE HERE by your team Nexus server -->
-		<url>http://35.207.247.57:8081/repository/maven-snapshots/</url>
+		<url>http://35.213.154.224:8081/repository/maven-snapshots/</url>
 	</snapshotRepository>
 	</distributionManagement>
 
