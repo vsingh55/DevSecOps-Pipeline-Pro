@@ -1,0 +1,162 @@
+pipeline {
+    agent any
+    
+    tools {
+        maven 'maven3'
+        jdk 'jdk17'
+    }
+    
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'git-crd', url: 'https://github.com/vsingh55/DevSecOps-Pipeline-Pro.git'
+            }
+        }
+        
+        stage('Compile') {
+            steps {
+                dir('BoardGameApp') {
+                    sh "mvn compile"
+                }
+            }
+        }
+        
+        stage('Unit Test') {
+            steps {
+                dir('BoardGameApp') {
+                    sh "mvn test"
+                }
+            }
+        }
+        
+        stage('Sonarqube Analysis') {
+            steps {
+                dir('BoardGameApp') {
+                    withSonarQubeEnv('sonar') {
+                        sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=BoardGame \
+                        -Dsonar.projectKey=BoardGame -Dsonar.java.binaries=. '''    
+                    }
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                dir('BoardGameApp') {
+                    script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                dir('BoardGameApp') {
+                    sh "mvn package"    
+                }
+            }
+        }
+        
+        stage('Publish Artifact to Nexus') {
+            steps {
+                dir('BoardGameApp') {
+                    withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'jdk17', maven: 'maven3', mavenSettingsConfig: '', traceability: true) {
+                    sh "mvn deploy"
+                    }
+                }
+           }
+        }
+
+        stage('Build & Tag Docker Image') {
+            steps {
+                dir('BoardGameApp') {
+                    script {
+                        withDockerRegistry(credentialsId: 'docker-crd') {
+                            sh 'docker build -t krvsc/boardgame:latest .'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Docker Image Scan') {
+            steps {
+                sh "trivy image --format table -o trivy-image-report.html krvsc/boardgame:latest"
+            }
+        }
+        
+        stage('Push Docker Image') {
+            steps {
+                dir('BoardGameApp') {
+                    script {
+                        withDockerRegistry(credentialsId: 'docker-crd') {
+                            sh 'docker push krvsc/boardgame:latest'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                dir('BoardGameApp') {
+                    withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: 'kubernetes-admin@kubernetes', credentialsId: 'k8-crd', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://10.160.0.4:6443') {
+                        sh "kubectl apply -f deployment.yaml"
+                    }
+                }
+            }
+        }
+        
+        
+        stage('Verify To K8s') {
+            steps {
+                dir('BoardGameApp') {
+                    withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: '', credentialsId: 'k8-crd', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://10.160.0.4:6443') {
+                        sh "kubectl get pods -n webapps"
+                        sh "kubectl get svc -n webapps"
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                def jobName = env.JOB_NAME
+                def buildNumber = env.BUILD_NUMBER
+                def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
+                def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
+
+                def body = """
+                <html>
+                <body>
+                <div style="border: 4px solid ${bannerColor}; padding: 10px;">
+                <h2>${jobName} - Build ${buildNumber}</h2>
+                <div style="background-color: ${bannerColor}; padding: 10px;">
+                <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
+                </div>
+                <p>Check the <a href="${env.BUILD_URL}">console output</a>.</p>
+                </div>
+                </body>
+                </html>
+                """
+
+                emailext (
+                    subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
+                    body: body,
+                    to: 'vijaykrvsc@gmail.com',
+                    from: 'jenkins@example.com',
+                    replyTo: 'jenkins@example.com',
+                    mimeType: 'text/html',
+                    attachmentsPattern: 'trivy-fs-report.html'
+                )
+            }
+        }
+    }
+}

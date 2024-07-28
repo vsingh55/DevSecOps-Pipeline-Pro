@@ -10,6 +10,8 @@ cd prometheus-2.51.2.linux-amd64
 ./prometheus --config.file=prometheus.yml &
 cd ~
 sleep 10
+
+
 # Grafana
 sudo apt-get update
 sudo apt-get install -y apt-transport-https
