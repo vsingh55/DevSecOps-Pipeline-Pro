@@ -1,4 +1,4 @@
-# Security-Centric CI/CD Pipeline
+# CI/CD with Built-in Security and Automation
 
 A security-centric CI/CD pipeline integrating cutting-edge tools and practices to ensure robust code quality, vulnerability scanning, artifact publishing, secure Kubernetes deployment, and continuous monitoring.
 
